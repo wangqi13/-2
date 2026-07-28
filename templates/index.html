@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>物料组合方案</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+    --primary: #4F6EF7; --primary-hover: #3B5DE7;
+    --bg: #F0F4FF; --card: #FFFFFF;
+    --text: #1E293B; --text-secondary: #64748B;
+    --border: #E2E8F0; --success: #22C55E; --error: #EF4444;
+    --radius: 12px;
+    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+    --shadow-lg: 0 10px 25px rgba(0,0,0,.08), 0 4px 10px rgba(0,0,0,.04);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh;
+}
+.page { display: none; animation: fadeIn 0.35s ease; }
+.page.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ===== 选择页（白底） ===== */
+#pageSelect { display: none; }
+#pageSelect.active {
+    display: flex; justify-content: center; align-items: center;
+    min-height: 100vh; padding: 20px;
+}
+.select-wrap {
+    background: white; border-radius: 40px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+    padding: 50px 40px; text-align: center; max-width: 900px; width: 100%;
+}
+.select-wrap h1 { font-size: 2.4rem; font-weight: 700; color: #0b1e2b; }
+.select-wrap .sub { color: #5e727f; font-size: 1.1rem; margin: 10px 0 40px; }
+.option-cards { display: flex; flex-wrap: wrap; gap: 30px; justify-content: center; }
+.option-card {
+    flex: 1 1 260px; max-width: 340px; background: #fafcff;
+    border-radius: 28px; padding: 40px 25px 35px; border: 2px solid #e9eef2;
+    cursor: pointer; transition: all 0.25s ease; text-align: center;
+}
+.option-card:hover { transform: translateY(-8px); border-color: var(--primary); box-shadow: 0 20px 40px -12px rgba(79,110,247,.25); }
+.option-card .icon { font-size: 4rem; display: block; margin-bottom: 16px; }
+.option-card h3 { font-size: 1.6rem; font-weight: 600; color: #0b1e2b; margin-bottom: 8px; }
+.option-card p { color: #5e727f; font-size: 0.95rem; line-height: 1.6; }
+.badge { display: inline-block; margin-top: 16px; padding: 4px 18px; border-radius: 30px; font-size: 0.75rem; font-weight: 600; background: #e0f2e9; color: #0d7c5a; }
+
+/* ===== 通用 ===== */
+.header {
+    background: linear-gradient(135deg, #4F6EF7 0%, #7B61FF 100%);
+    color: white; padding: 18px 30px; text-align: center;
+    box-shadow: 0 4px 20px rgba(79,110,247,.25);
+    display: flex; align-items: center; justify-content: center; gap: 20px;
+    position: relative;
+}
+.header h1 { font-size: 20px; font-weight: 700; letter-spacing: .5px; }
+.header .back-btn {
+    position: absolute; left: 20px; background: rgba(255,255,255,.2);
+    border: 1px solid rgba(255,255,255,.4); padding: 7px 18px;
+    border-radius: 40px; font-size: 0.85rem; color: white; cursor: pointer;
+    transition: 0.2s; font-family: inherit;
+}
+.header .back-btn:hover { background: rgba(255,255,255,.35); }
+.container { max-width: 880px; margin: 0 auto; padding: 24px 20px 60px; }
+.card {
+    background: var(--card); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 24px; margin-bottom: 18px;
+    border: 1px solid var(--border); transition: box-shadow .2s;
+}
+.card:hover { box-shadow: var(--shadow-lg); }
+.card h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; color: var(--primary); display: flex; align-items: center; gap: 8px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-row.col-3 { grid-template-columns: 1fr 1fr 1fr; }
+.form-group { display: flex; flex-direction: column; }
+.form-group.full { grid-column: 1 / -1; }
+label { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 5px; letter-spacing: .3px; }
+label .required { color: var(--error); margin-left: 2px; }
+input[type="text"], input[type="number"], select {
+    width: 100%; padding: 10px 14px; border: 1.5px solid var(--border);
+    border-radius: 8px; font-size: 14px; color: var(--text); background: #FAFBFC;
+    transition: border-color .2s, box-shadow .2s, background .2s; font-family: inherit;
+}
+input:focus, select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,110,247,.12); background: #FFF; }
+input[type="file"] {
+    width: 100%; padding: 24px 14px; border: 2px dashed var(--border);
+    border-radius: var(--radius); font-size: 14px; color: var(--text-secondary);
+    cursor: pointer; text-align: center; background: #FAFBFC;
+    transition: border-color .2s, background .2s;
+}
+input[type="file"]:hover { border-color: var(--primary); background: #F8FAFF; }
+.limits-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+.limits-table th { background: #F8FAFC; color: var(--text-secondary); font-size: 12px; font-weight: 700; padding: 10px 8px; text-transform: uppercase; letter-spacing: .5px; border-bottom: 2px solid var(--border); }
+.limits-table td { padding: 8px; border-bottom: 1px solid #F1F5F9; text-align: center; font-size: 14px; font-weight: 500; }
+.limits-table input { width: 100% !important; text-align: center; }
+.checkbox-group { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: #F8FAFC; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background .2s; }
+.checkbox-group:hover { background: #EEF2FF; }
+.checkbox-group input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
+.btn {
+    width: 100%; padding: 14px; background: linear-gradient(135deg, #4F6EF7 0%, #7B61FF 100%);
+    color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 700;
+    cursor: pointer; transition: transform .15s, box-shadow .15s, opacity .15s;
+    letter-spacing: .5px; box-shadow: 0 4px 15px rgba(79,110,247,.35); font-family: inherit;
+}
+.btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(79,110,247,.45); }
+.btn:active { transform: translateY(0); }
+.btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+.btn-outline {
+    width: auto; padding: 10px 24px; background: white; color: var(--primary);
+    border: 1.5px solid var(--primary); border-radius: 8px; font-size: 14px;
+    font-weight: 600; cursor: pointer; transition: all .2s; font-family: inherit; margin-top: 10px;
+}
+.btn-outline:hover { background: var(--primary); color: white; }
+.btn-outline:disabled { opacity: .5; cursor: not-allowed; }
+.btn-green {
+    width: 100%; padding: 14px; background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%);
+    color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 700;
+    cursor: pointer; box-shadow: 0 4px 15px rgba(34,197,94,.35);
+    transition: transform .15s; font-family: inherit; display: none;
+}
+.btn-green:hover { transform: translateY(-1px); }
+.status-msg {
+    text-align: center; padding: 20px; color: var(--primary); font-weight: 600; font-size: 15px; display: none;
+}
+.status-msg.active { display: block; }
+.spinner { display: inline-block; width: 20px; height: 20px; border: 2.5px solid #E2E8F0; border-top-color: var(--primary); border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; margin-right: 8px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.error-box { background: #FFF5F5; border: 1px solid #FECACA; color: #DC2626; padding: 16px 20px; border-radius: var(--radius); font-size: 14px; font-weight: 500; }
+.result-header { background: linear-gradient(135deg, #F0FDF4 0%, #ECFDF5 100%); border: 1px solid #BBF7D0; padding: 16px 20px; border-radius: var(--radius); margin-bottom: 20px; }
+.result-header h3 { color: #16A34A; margin-bottom: 0; font-size: 18px; }
+.solution-card { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 16px; overflow: hidden; box-shadow: var(--shadow); }
+.solution-card .s-header { background: #F8FAFC; padding: 14px 20px; font-weight: 700; font-size: 15px; color: var(--primary); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.solution-card .s-body { padding: 20px; }
+.metric-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.metric-tag { background: #EEF2FF; color: var(--primary); padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px; overflow-x: auto; display: block; }
+.data-table th { background: #F8FAFC; color: var(--text-secondary); font-weight: 700; padding: 10px 8px; border-bottom: 2px solid var(--border); white-space: nowrap; font-size: 12px; }
+.data-table td { padding: 10px 8px; border-bottom: 1px solid #F1F5F9; text-align: center; white-space: nowrap; }
+.dl-btn { display: inline-block; padding: 8px 18px; background: white; color: var(--primary); border: 1.5px solid var(--primary); border-radius: 8px; font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; transition: all .2s; }
+.dl-btn:hover { background: var(--primary); color: white; }
+.total-badge { display: inline-block; background: #22C55E; color: white; padding: 4px 14px; border-radius: 20px; font-size: 14px; font-weight: 700; }
+.hint { font-size: 11px; color: #94A3B8; margin-top: 3px; display: block; }
+details summary { cursor: pointer; color: var(--text-secondary); font-size: 13px; padding: 4px 0; }
+details summary:hover { color: var(--primary); }
+.row-count { display: inline-block; padding: 4px 12px; background: #EEF2FF; color: var(--primary); border-radius: 20px; font-size: 12px; font-weight: 600; margin-left: 8px; }
+.preview-table-wrap { max-height: 300px; overflow-y: auto; margin-top: 10px; border: 1px solid var(--border); border-radius: var(--radius); }
+.info-box { background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: var(--radius); padding: 14px 18px; margin: 12px 0; font-size: 14px; color: #16A34A; font-weight: 500; }
+.warn-box { background: #FFFBEB; border: 1px solid #FDE68A; border-radius: var(--radius); padding: 14px 18px; margin: 12px 0; font-size: 14px; color: #B45309; font-weight: 500; }
+.progress-bar-wrap { height: 6px; background: #E2E8F0; border-radius: 3px; margin-top: 12px; overflow: hidden; }
+.progress-bar-fill { height: 100%; background: var(--primary); border-radius: 3px; transition: width .3s; width: 0%; }
+
+@media (max-width: 640px) {
+    .form-row { grid-template-columns: 1fr; }
+    .container { padding: 16px 12px 40px; }
+    .header { flex-direction: column; padding: 14px 16px; }
+    .header .back-btn { position: static; }
+    .select-wrap { padding: 30px 20px; }
+    .select-wrap h1 { font-size: 1.8rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================ -->
+<!-- 选择页 -->
+<!-- ============================================ -->
+<div id="pageSelect" class="page active">
+<div class="select-wrap">
+    <h1>物料组合方案</h1>
+    <p class="sub">请选择你要进入的功能模块</p>
+    <div class="option-cards">
+        <div class="option-card" onclick="show('pageSolver')">
+            <span style="font-size:4rem;display:block;margin-bottom:16px;">🧩</span>
+            <h3>物料组合求解</h3>
+            <p>上传物料表 设置约束条件 OR-Tools 智能生成组合方案</p>
+            <span class="badge"> 已完善  可用</span>
+        </div>
+        <div class="option-card" onclick="show('pageHide')">
+            <span style="font-size:4rem;display:block;margin-bottom:16px;">🗂️</span>
+            <h3>Excel 表中隐藏</h3>
+            <p>上传总表 + 待隐藏表  按"批道"列自动隐藏匹配行</p>
+            <span class="badge"> 已完善  可用</span>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- ============================================ -->
+<!-- 求解器页 -->
+<!-- ============================================ -->
+<div id="pageSolver" class="page">
+<div class="header">
+    <button class="back-btn" onclick="show('pageSelect')"> 返回选择</button>
+    <div><h1>物料组合方案求解工具</h1></div>
+</div>
+<div class="container">
+    <div class="card">
+        <h3><span class="icon">1</span> 上传 Excel <span class="row-count" id="rowCountBadge" style="display:none"></span></h3>
+        <input type="file" id="excelFile" accept=".xlsx,.xls" onchange="onSolverFileLoad()">
+        <details style="margin-top:10px;">
+            <summary>高级设置</summary>
+            <div style="margin-top:8px;">
+                <label>表头所在行</label>
+                <input type="number" id="headerRow" value="1" min="1" max="10" style="width:80px;">
+                <span class="hint">列名在第几行就填几，默认第1行</span>
+            </div>
+            <div style="margin-top:12px;">
+                <label>清真筛选</label>
+                <select id="halalFilter"><option value="">不限</option><option value="halal">清真（仅 c02b 开头批道）</option><option value="non_halal">非清真（排除 c02b 开头批道）</option></select>
+                <span class="hint">按批道号前缀 c02b 筛选</span>
+            </div>
+        </details>
+    </div>
+
+    <div class="card">
+        <h3><span class="icon">2</span> 筛选与目标</h3>
+        <div class="form-row">
+            <div class="form-group full"><label>单行冻力筛选范围</label><input type="text" id="jellyFilter" value="190" placeholder="如: 100-200, 300-400，单值如190 = 0~190"><span class="hint">多段用逗号隔开</span></div>
+            <div class="form-group"><label>沙门发酵筛选</label><input type="text" id="salmonellaFilter" placeholder="如: 是,微（留空不限）"></div>
+            <div class="form-group"><label>大脑发酵筛选</label><input type="text" id="coliFilter" placeholder="如: 是,微（留空不限）"></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3><span class="icon">3</span> 重量与冻力约束</h3>
+        <div class="form-row col-3">
+            <div class="form-group"><label>总重下限 (kg) <span class="required">*</span></label><input type="number" id="totalWeightMin" step="any" value="1000"></div>
+            <div class="form-group"><label>总重上限 (kg)</label><input type="number" id="totalWeightMax" step="any" placeholder="留空不限"></div>
+            <div class="form-group"><label>方案数量</label><input type="number" id="numSolutions" value="1" min="1" max="10"></div>
+        </div>
+        <div class="form-row" style="margin-top:14px;">
+            <div class="form-group"><label>加权冻力下限 <span class="required">*</span></label><input type="number" id="jellyLow" step="any" value="180"></div>
+            <div class="form-group"><label>加权冻力上限 <span class="required">*</span></label><input type="number" id="jellyHigh" step="any" value="189"></div>
+        </div>
+        <div class="checkbox-group" style="margin-top:14px;">
+            <input type="checkbox" id="noBatchOverlap">
+            <label>方案间批道不重复 <span style="font-weight:400;color:var(--text-secondary);">（每个方案使用完全不同的批道号）</span></label>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3><span class="icon">4</span> 其他指标约束 <span style="font-weight:400;font-size:12px;color:var(--text-secondary);">（可选）</span></h3>
+        <table class="limits-table">
+            <tr><th>指标</th><th>下限</th><th>上限</th></tr>
+            <tr><td>水分</td><td><input type="number" class="limit-low" data-ind="水分" step="any"></td><td><input type="number" class="limit-high" data-ind="水分" step="any"></td></tr>
+            <tr><td>灰分</td><td><input type="number" class="limit-low" data-ind="灰分" step="any"></td><td><input type="number" class="limit-high" data-ind="灰分" step="any"></td></tr>
+            <tr><td>勃氏粘度</td><td><input type="number" class="limit-low" data-ind="勃氏粘度" step="any"></td><td><input type="number" class="limit-high" data-ind="勃氏粘度" step="any"></td></tr>
+            <tr><td>透光率450</td><td><input type="number" class="limit-low" data-ind="透光率450" step="any"></td><td><input type="number" class="limit-high" data-ind="透光率450" step="any"></td></tr>
+            <tr><td>透光率620</td><td><input type="number" class="limit-low" data-ind="透光率620" step="any"></td><td><input type="number" class="limit-high" data-ind="透光率620" step="any"></td></tr>
+        </table>
+    </div>
+
+    <button class="btn" id="submitBtn" onclick="submitTask()">开始求解</button>
+    <div class="status-msg" id="statusMsg"><span class="spinner"></span><span id="statusText">正在计算，请稍候...</span><div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressBar"></div></div></div>
+    <div id="result"></div>
+</div>
+</div>
+
+<!-- ============================================ -->
+<!-- 隐藏页 -->
+<!-- ============================================ -->
+<div id="pageHide" class="page">
+<div class="header">
+    <button class="back-btn" onclick="show('pageSelect')"> 返回选择</button>
+    <div><h1>按"批道"隐藏数据</h1></div>
+</div>
+<div class="container">
+    <div class="card">
+        <h3><span class="icon">1</span> 上传总表（被处理的主表）</h3>
+        <input type="file" id="mainFile" accept=".xlsx,.xls" onchange="loadMain()">
+        <div style="margin-top:8px;font-size:13px;color:var(--text-secondary);" id="mainStatus">尚未上传</div>
+        <details style="margin-top:10px;">
+            <summary>高级设置</summary>
+            <div style="margin-top:8px;">
+                <label>列名所在行</label>
+                <input type="number" id="mainHeaderRow" value="1" min="1" max="10" style="width:80px;" onchange="loadMain()">
+                <span class="hint">列名在第几行就填几，默认第1行</span>
+            </div>
+        </details>
+    </div>
+
+    <div class="card">
+        <h3><span class="icon">2</span> 上传待隐藏表（包含要隐藏的"批道"值）</h3>
+        <input type="file" id="deleteFile" accept=".xlsx,.xls" onchange="loadDelete()">
+        <div style="margin-top:8px;font-size:13px;color:var(--text-secondary);" id="deleteStatus">尚未上传</div>
+    </div>
+
+    <div class="card">
+        <h3><span class="icon"></span> 匹配规则</h3>
+        <p style="font-size:14px;color:var(--text-secondary);">根据列 <strong style="color:var(--primary);">"批道"</strong> 进行匹配，隐藏总表中所有"批道"值与待隐藏表中任一"批道"值相同的行。</p>
+    </div>
+
+    <button class="btn" id="executeBtn" onclick="executeHide()" disabled> 执行隐藏</button>
+    <div id="resultArea" style="display:none;margin-top:16px;">
+        <div id="resultMsg" style="margin-bottom:12px;"></div>
+        <button class="btn-green" id="saveBtn" onclick="saveToDesktop()" style="display:inline-block;width:auto;"> 保存到桌面</button>
+    </div>
+</div>
+</div>
+
+<script>
+// ===== 页面切换 =====
+function show(id) { document.querySelectorAll('.page').forEach(e => e.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (!document.getElementById('pageSelect').classList.contains('active')) show('pageSelect'); } });
+
+// ===== 求解器：文件上传预览行数 =====
+function onSolverFileLoad() {
+    let f = document.getElementById('excelFile').files[0];
+    if (!f) return;
+    let reader = new FileReader();
+    reader.onload = function(ev) {
+        try {
+            let wb = XLSX.read(ev.target.result, {type:'array'});
+            let sh = wb.Sheets[wb.SheetNames[0]];
+            let data = XLSX.utils.sheet_to_json(sh);
+            let badge = document.getElementById('rowCountBadge');
+            badge.textContent = data.length + ' 行';
+            badge.style.display = 'inline-block';
+        } catch(e) {}
+    };
+    reader.readAsArrayBuffer(f);
+}
+
+// ===== 求解器：提交 + 进度轮询 =====
+let pollTimer = null;
+function submitTask() {
+    let fileInput = document.getElementById('excelFile');
+    if (fileInput.files.length === 0) { alert('请选择Excel文件'); return; }
+    let headerRow = parseInt(document.getElementById('headerRow').value) || 1;
+    let totalWeightMin = parseFloat(document.getElementById('totalWeightMin').value);
+    let totalWeightMax = parseFloat(document.getElementById('totalWeightMax').value) || 0;
+    let jellyLow = parseFloat(document.getElementById('jellyLow').value);
+    let jellyHigh = parseFloat(document.getElementById('jellyHigh').value);
+    let jellyFilter = document.getElementById('jellyFilter').value.trim();
+    let numSolutions = parseInt(document.getElementById('numSolutions').value) || 1;
+    let noBatchOverlap = document.getElementById('noBatchOverlap').checked;
+    let salmonellaFilter = document.getElementById('salmonellaFilter').value.trim();
+    let coliFilter = document.getElementById('coliFilter').value.trim();
+    let halalFilter = document.getElementById('halalFilter').value;
+    if (isNaN(totalWeightMin) || isNaN(jellyLow) || isNaN(jellyHigh)) { alert('请完整填写必填参数（标 * 的项）'); return; }
+
+    let limits = {};
+    document.querySelectorAll('.limit-low').forEach(inp => {
+        let ind = inp.dataset.ind;
+        let low = inp.value ? parseFloat(inp.value) : null;
+        let hiInp = document.querySelector('.limit-high[data-ind="'+ind+'"]');
+        let high = hiInp.value ? parseFloat(hiInp.value) : null;
+        limits[ind] = [low, high];
+    });
+
+    let fd = new FormData();
+    fd.append('file', fileInput.files[0]);
+    fd.append('header_row', headerRow);
+    fd.append('total_weight_min', totalWeightMin);
+    fd.append('total_weight_max', totalWeightMax);
+    fd.append('jelly_low', jellyLow);
+    fd.append('jelly_high', jellyHigh);
+    fd.append('jelly_filter', jellyFilter);
+    fd.append('num_solutions', numSolutions);
+    fd.append('no_batch_overlap', noBatchOverlap ? '1' : '0');
+    fd.append('salmonella_filter', salmonellaFilter);
+    fd.append('coli_filter', coliFilter);
+    fd.append('halal_filter', halalFilter);
+    fd.append('limits', JSON.stringify(limits));
+
+    let btn = document.getElementById('submitBtn');
+    let sm = document.getElementById('statusMsg');
+    let st = document.getElementById('statusText');
+    let pb = document.getElementById('progressBar');
+    let result = document.getElementById('result');
+    btn.disabled = true; btn.textContent = '计算中...';
+    sm.classList.add('active'); st.textContent = '正在提交数据...';
+    pb.style.width = '5%'; result.innerHTML = '';
+
+    fetch('/solve', { method:'POST', body:fd })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) {
+            sm.classList.remove('active'); btn.disabled = false; btn.textContent = '开始求解';
+            result.innerHTML = '<div class="error-box">'+data.error+'</div>';
+            return;
+        }
+        let taskId = data.task_id;
+        let total = data.total_solutions;
+        st.textContent = '正在求解方案 0/'+total+'...';
+        pb.style.width = '10%';
+
+        // 轮询进度
+        let pollCount = 0;
+        function poll() {
+            pollCount++;
+            fetch('/progress/' + taskId)
+            .then(r => r.json())
+            .then(p => {
+                let pct = p.total > 0 ? Math.round(p.found / p.total * 100) : 0;
+                pct = Math.max(10, Math.min(95, pct));
+                pb.style.width = pct + '%';
+                st.textContent = '正在求解方案 '+p.found+'/'+p.total+'...';
+
+                if (p.done) {
+                    // 获取最终结果
+                    fetch('/result/' + taskId)
+                    .then(r => r.json())
+                    .then(final => {
+                        sm.classList.remove('active');
+                        btn.disabled = false; btn.textContent = '开始求解';
+                        if (final.error) {
+                            result.innerHTML = '<div class="error-box">'+final.error+'</div>';
+                        } else {
+                            renderSolutions(final);
+                        }
+                    });
+                } else {
+                    // 继续轮询
+                    let delay = pollCount < 5 ? 1000 : (pollCount < 20 ? 2000 : 3000);
+                    pollTimer = setTimeout(poll, delay);
+                }
+            })
+            .catch(() => {
+                // 出错后继续重试
+                pollTimer = setTimeout(poll, 2000);
+            });
+        }
+        pollTimer = setTimeout(poll, 1000);
+    })
+    .catch(err => {
+        sm.classList.remove('active'); btn.disabled = false; btn.textContent = '开始求解';
+        result.innerHTML = '<div class="error-box">网络请求失败: '+err+'</div>';
+    });
+}
+
+function renderSolutions(data) {
+    let html = '<div class="result-header"><h3>求解成功，共找到 '+data.count+' 个方案</h3></div>';
+    data.solutions.forEach((sol, idx) => {
+        html += '<div class="solution-card">';
+        html += '<div class="s-header">方案 '+(idx+1)+' <span class="total-badge">总重 '+sol.total_weight+' kg</span></div>';
+        html += '<div class="s-body"><div class="metric-row">';
+        for (let k in sol.final_indicators) html += '<span class="metric-tag">'+k+': '+sol.final_indicators[k]+'</span>';
+        html += '</div><table class="data-table"><tr>';
+        if (sol.result_rows.length) {
+            for (let c in sol.result_rows[0]) html += '<th>'+c+'</th>';
+            html += '</tr>';
+            sol.result_rows.forEach(row => {
+                html += '<tr>';
+                for (let c in row) html += '<td>'+row[c]+'</td>';
+                html += '</tr>';
+            });
+        }
+        html += '</table><a class="dl-btn" href="/download/'+sol.download_id+'" download> 下载 Excel</a>';
+        html += '</div></div>';
+    });
+    document.getElementById('result').innerHTML = html;
+}
+
+// ===== 隐藏页逻辑 =====
+let mainData = [], deleteData = [];
+let mainWorkbook = null;
+const MATCH_KEY = '批道';
+
+function loadMain() {
+    let f = document.getElementById('mainFile').files[0];
+    if (!f) return;
+
+    function parseAndUpdate(wb) {
+        try {
+            let sheet = wb.Sheets[wb.SheetNames[0]];
+            let hRow = parseInt(document.getElementById('mainHeaderRow').value) || 1;
+            mainData = sheet_to_json_with_header(sheet, hRow);
+            document.getElementById('mainStatus').innerHTML = ' 已加载 <strong>'+mainData.length+'</strong> 行（'+f.name+'）';
+            document.getElementById('resultArea').style.display = 'none';
+            updateHideBtns();
+        } catch(e) { alert('解析总表失败: '+e.message); }
+    }
+
+    // 如果已有缓存，直接重新解析
+    if (mainWorkbook && mainWorkbook._fileName === f.name) {
+        parseAndUpdate(mainWorkbook);
+        return;
+    }
+
+    let reader = new FileReader();
+    reader.onload = function(ev) {
+        try {
+            let wb = XLSX.read(ev.target.result, {type:'array'});
+            wb._fileName = f.name;
+            mainWorkbook = wb;
+            parseAndUpdate(wb);
+        } catch(e) { alert('解析总表失败: '+e.message); }
+    };
+    reader.readAsArrayBuffer(f);
+}
+
+function sheet_to_json_with_header(sheet, headerRow) {
+    // 读取所有行（数组的数组）
+    let allRows = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: ''});
+    if (allRows.length < headerRow) return [];
+    // 提取表头行（headerRow 从1开始，数组索引从0开始）
+    let headers = allRows[headerRow - 1].map(h => String(h ?? '').trim().replace(/\n/g,'').replace(/\r/g,''));
+    // 从表头下一行开始转换为对象
+    let result = [];
+    for (let i = headerRow; i < allRows.length; i++) {
+        let row = {};
+        let hasData = false;
+        for (let j = 0; j < headers.length; j++) {
+            let key = headers[j] || ('col_' + j);
+            let val = allRows[i][j] ?? '';
+            row[key] = val;
+            if (val !== '' && val != null) hasData = true;
+        }
+        if (hasData) result.push(row);
+    }
+    return result;
+}
+
+function loadDelete() {
+    let f = document.getElementById('deleteFile').files[0];
+    if (!f) return;
+    let reader = new FileReader();
+    reader.onload = function(ev) {
+        try {
+            let wb = XLSX.read(ev.target.result, {type:'array'});
+            deleteData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+            document.getElementById('deleteStatus').innerHTML = ' 已加载 <strong>'+deleteData.length+'</strong> 行（'+f.name+'）';
+            document.getElementById('resultArea').style.display = 'none';
+            updateHideBtns();
+        } catch(e) { alert('解析待隐藏表失败'); }
+    };
+    reader.readAsArrayBuffer(f);
+}
+
+function updateHideBtns() {
+    document.getElementById('executeBtn').disabled = !(mainData.length > 0 && deleteData.length > 0);
+}
+
+function checkColumns() {
+    let mainOk = mainData.some(r => r.hasOwnProperty(MATCH_KEY));
+    let delOk = deleteData.some(r => r.hasOwnProperty(MATCH_KEY));
+    if (!mainOk) { alert('总表中不存在列名为"'+MATCH_KEY+'"的字段'); return false; }
+    if (!delOk) { alert('待隐藏表中不存在列名为"'+MATCH_KEY+'"的字段'); return false; }
+    return true;
+}
+
+function executeHide() {
+    if (!checkColumns()) return;
+
+    let delSet = new Set(deleteData.map(r => String(r[MATCH_KEY] ?? '')));
+    let originalLen = mainData.length;
+    let resultRows = mainData.filter(r => !delSet.has(String(r[MATCH_KEY] ?? '')));
+    let hiddenCount = originalLen - resultRows.length;
+
+    let area = document.getElementById('resultArea');
+    let msg = document.getElementById('resultMsg');
+    let saveBtn = document.getElementById('saveBtn');
+    area.style.display = 'block';
+
+    msg.innerHTML = '<div class="info-box"><strong> 处理完成！</strong><br>原始总表共 <strong>'+originalLen+'</strong> 行<br>成功隐藏 <strong style="color:#c0392b;">'+hiddenCount+'</strong> 行<br>剩余 <strong style="color:#0d7c5a;">'+resultRows.length+'</strong> 行</div>';
+
+    if (resultRows.length === 0) {
+        saveBtn.style.display = 'none';
+    } else {
+        saveBtn.style.display = 'inline-block';
+        // 保存结果供下载
+        window._hideResult = resultRows;
+        window._hideFileName = (document.getElementById('mainFile').files[0]?.name || '总表').replace(/\.[^.]+$/, '');
+    }
+}
+
+function saveToDesktop() {
+    if (!window._hideResult || !window._hideResult.length) { alert('无数据可保存'); return; }
+    let now = new Date();
+    let ds = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+    let fn = (window._hideFileName || '处理后总表') + '_处理后_' + ds;
+    let btn = document.getElementById('saveBtn');
+    btn.disabled = true; btn.textContent = '正在保存...';
+    fetch('/save-excel', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ rows: window._hideResult, filename: fn })
+    })
+    .then(r => r.json())
+    .then(d => {
+        btn.disabled = false; btn.textContent = '已保存到桌面  ' + (d.filename || '');
+        if (d.error) { alert('保存失败: '+d.error); btn.textContent = '保存到桌面'; }
+    })
+    .catch(e => { btn.disabled = false; btn.textContent = '保存到桌面'; alert('保存失败: '+e); });
+}
+</script>
+</body>
+</html>
